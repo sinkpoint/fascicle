@@ -408,7 +408,7 @@ def tradd_cmd(args):
     TRKMGR.add_transformed(csvfile, name=args.n, param=args.p)
     TRKMGR.sync_tract_transforms()
 
-if __name__ == '__main__':
+def main():
     import sys
     import argparse
     parser_shared = argparse.ArgumentParser(add_help=False)

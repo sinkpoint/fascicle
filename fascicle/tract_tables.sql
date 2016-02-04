@@ -1,0 +1,44 @@
+
+DROP TABLE IF EXISTS `points`;
+        
+CREATE TABLE `points` (
+  `id` INTEGER PRIMARY KEY,
+  `x` DOUBLE NOT NULL DEFAULT 0,
+  `y` DOUBLE NOT NULL DEFAULT 0,
+  `z` DOUBLE NOT NULL DEFAULT 0
+);
+
+
+
+DROP TABLE IF EXISTS `streamlines`;
+        
+CREATE TABLE `streamlines` (
+  `id` INTEGER PRIMARY KEY,
+  `stream_id` INTEGER NOT NULL DEFAULT 0,
+  `point_id` BIGINT NOT NULL DEFAULT NULL,
+  `ord` BIGINT NOT NULL DEFAULT 0,
+  `tracts_id` INTEGER NULL DEFAULT NULL
+);
+
+
+
+DROP TABLE IF EXISTS `values`;
+        
+CREATE TABLE `values` (
+  `id` INTEGER PRIMARY KEY,
+  `point_id` BIGINT NOT NULL DEFAULT NULL,
+  `type` VARCHAR(32) NOT NULL,
+  `value` FLOAT NULL DEFAULT NULL
+);
+
+
+
+DROP TABLE IF EXISTS `tracts`;
+        
+CREATE TABLE `tracts` (
+  `id` INTEGER PRIMARY KEY,
+  `name` VARCHAR(128) NULL DEFAULT NULL,
+  `path` VARCHAR(256) NULL DEFAULT NULL,
+  `group` INTEGER NULL DEFAULT NULL
+);
+

@@ -13,6 +13,7 @@ def loadVtk(filename):
     vreader.SetFileName(filename)
     vreader.Update()
     polydata = vreader.GetOutput()
+    polydata.ReleaseDataFlagOn()
 
     streamlines = []
     verts = vtk_to_numpy(polydata.GetPoints().GetData())
@@ -62,17 +63,36 @@ def saveVtk(dataset, filename):
         pointdata.SetActiveScalars(sname)
 
 
+    print len(dataset['streams']),'streamlines, ',len(dataset['points']),' points.'
+
     if 'vtp' in filename:
+        vreader = vtk.vtkXMLPolyDataReader()
         vwriter = vtk.vtkXMLPolyDataWriter()
     else:
+        vreader = vtk.vtkPolyDataReader()
         vwriter = vtk.vtkPolyDataWriter()
+
+    if os.path.isfile(filename):
+        print '{} exists, appending to it'.format(filename)
+        vreader.SetFileName(filename)
+        vreader.Update()
+        old_polydata = vreader.GetOutput()
+        old_polydata.ReleaseDataFlagOn()
+        appendfilter = vtk.vtkAppendFilter()
+        appendfilter.AddInput(old_polydata)
+        appendfilter.AddInput(polydata)
+        appendfilter.Update()
+
+        gfilter = vtk.vtkGeometryFilter()
+        gfilter.SetInput(appendfilter.GetOutput())
+        polydata = gfilter.GetOutput()
+        polydata.ReleaseDataFlagOn()
+
 
     vwriter.SetInput(polydata)
     vwriter.SetFileName(filename)
     vwriter.Write()
     print 'saved',filename
-    print len(dataset['streams']),'streamlines, ',len(dataset['points']),' points.'
-
 
 
 
@@ -130,27 +150,31 @@ class TrackManager():
         else:
             id_delta += 1
 
-        print 'insert points'
         queue = []
         for i,p in enumerate(vdata['points']):
             queue.append({'id':i+id_delta, 'x':p[0], 'y':p[1], 'z':p[2]})
 
         if len(queue) > 0:
+            print 'insert {} points'.format(len(queue))
             self.engine.execute(Point.__table__.insert(), queue)
 
-        if vdata['values'] is not None:
-            print 'insert scalars'
+        if vdata['values'] is not None and len(vdata) > 0:
             queue = []
             for sname, varr in vdata['values'].iteritems():
+                print 'insert scalar set {}'.format(sname)
+                if len(varr) > 0 and type(varr[0]) is np.ndarray:
+                    print 'Skip {}: is ndarray'.format(sname)
+                    # skip tensor data for now
+                    # [todo] add tensor data compatibility
+                    continue
+
                 for vi, val in enumerate(varr):
-                    vid = vi+id_delta                    
+                    vid = vi+id_delta                   
                     queue.append({'point_id':vid, 'name':sname, 'value':val})
             
             if len(queue) > 0:                    
                 self.engine.execute(Scalar.__table__.insert(), queue)
 
-
-        print 'insert streamlines'
 
         sid_delta = self.session.query(func.max(Streamline.id)).first()[0]
 
@@ -170,6 +194,7 @@ class TrackManager():
 
         if len(stm_queue) > 0:
             self.engine.execute(Streamline.__table__.insert(), stm_queue)
+            print 'insert {} streamlines'.format(len(stm_queue))
 
         if len(queue) > 0:
             self.engine.execute(StreamPoints.__table__.insert(), queue)
@@ -279,6 +304,7 @@ class TrackManager():
                 last_stm_idx = stm.id
                 last_p_idx = point.id
 
+            file_out = output
             if not merged:
                 if tract_name is not None:
                     file_out = output
@@ -288,9 +314,7 @@ class TrackManager():
                     fname = '_'.join((base, trk_name, trans_name)) + '.vtp'
                     file_out = os.path.join(mypath, fname)
 
-                saveVtk(dataset, file_out)
-        if merged:
-            saveVtk(dataset, output)
+            saveVtk(dataset, file_out)
 
     def add_transformed(self, csvfile, name=None, param=None):
         """

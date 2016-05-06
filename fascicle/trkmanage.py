@@ -104,6 +104,10 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.sql import exists
 import csv
 
+def on_connect(conn, record):
+    # need this for delete cascades
+    conn.execute('pragma foreign_keys=ON') 
+
 class TrackManager():
     def __init__(self, dbname = 'tracts.db'):
         self.dbname = dbname
@@ -113,6 +117,9 @@ class TrackManager():
     def init_db(self):
         dbname = 'sqlite:///'+self.dbname
         self.engine = create_engine(dbname, echo=False)
+        from sqlalchemy import event
+        # event.listen(self.engine, 'connect', on_connect)
+
         self.session.remove()
         self.session.configure(bind=self.engine, autoflush=False, expire_on_commit=False)
         #Base.metadata.drop_all(self.engine)
@@ -372,6 +379,9 @@ class TrackManager():
         self.session.commit()
 
 
+    def del_tract(self, trackvar):
+        self.init_db()
+        self.session()
 
 
 TRKMGR = None
@@ -396,6 +406,20 @@ def import_cmd(args):
 
     TRKMGR = TrackManager(dbname)
     TRKMGR.tracts_to_db(filename, group=group_id)
+
+def del_cmd(args):
+    print 'delete cmd'
+    print args
+
+    dbname = args.d
+    trackvar = args.trackvar
+
+    if dbname is None:
+        print 'error: no track db file specified'
+        return
+
+    TRKMGR = TrackManager(dbname)
+    TRKMGR.del_track(trackvar)
 
 def expcsv_cmd(args):
     print 'export to csv'
@@ -453,6 +477,11 @@ def main():
     init_pars = subparser.add_parser('init', help='Create a new tract db', parents=[parser_shared])
     init_pars.add_argument('--group', help='Group ID this track belongs to')
     init_pars.set_defaults(func=import_cmd)
+
+    del_pars = subparser.add_parser('del', help='Remove a tract', parents = [parser_shared])
+    del_pars.add_argument('-t', metavar='trackvar', help='track name')
+    del_pars.set_defaults(func=del_cmd)
+
 
     tradd_pars = subparser.add_parser('tradd', help='Add transformed points from ANTs csv', parents=[parser_shared])
     tradd_pars.add_argument('-n', metavar='name', help='Name of this transformed set')

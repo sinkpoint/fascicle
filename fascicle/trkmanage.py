@@ -13,7 +13,7 @@ def loadVtk(filename):
     vreader.SetFileName(filename)
     vreader.Update()
     polydata = vreader.GetOutput()
-    polydata.ReleaseDataFlagOn()
+    # polydata.ReleaseDataFlagOn()
 
     streamlines = []
     verts = vtk_to_numpy(polydata.GetPoints().GetData())
@@ -32,7 +32,7 @@ def loadVtk(filename):
     res = {'points':verts, 'values':scalars, 'streamlines':streamlines}
     return res
 
-def saveVtk(dataset, filename):
+def saveVtk(dataset, filename, is_append=False):
     polydata = vtk.vtkPolyData()
     points = vtk.vtkPoints()
     lines = vtk.vtkCellArray()
@@ -72,24 +72,24 @@ def saveVtk(dataset, filename):
         vreader = vtk.vtkPolyDataReader()
         vwriter = vtk.vtkPolyDataWriter()
 
-    if os.path.isfile(filename):
+    if os.path.isfile(filename) and is_append:
         print '{} exists, appending to it'.format(filename)
         vreader.SetFileName(filename)
         vreader.Update()
         old_polydata = vreader.GetOutput()
-        old_polydata.ReleaseDataFlagOn()
+        # old_polydata.ReleaseDataFlagOn()
         appendfilter = vtk.vtkAppendFilter()
         appendfilter.AddInput(old_polydata)
         appendfilter.AddInput(polydata)
         appendfilter.Update()
 
         gfilter = vtk.vtkGeometryFilter()
-        gfilter.SetInput(appendfilter.GetOutput())
+        gfilter.SetInputConnection(appendfilter.GetOutput())
         polydata = gfilter.GetOutput()
-        polydata.ReleaseDataFlagOn()
+        # polydata.ReleaseDataFlagOn()
 
 
-    vwriter.SetInput(polydata)
+    vwriter.SetInputData(polydata)
     vwriter.SetFileName(filename)
     vwriter.Write()
     print 'saved',filename
@@ -320,8 +320,11 @@ class TrackManager():
                     base = os.path.basename(output).split('.')[0]
                     fname = '_'.join((base, trk_name, trans_name)) + '.vtp'
                     file_out = os.path.join(mypath, fname)
+                    
+            if os.path.isfile(file_out):
+                os.remove(file_out)
 
-            saveVtk(dataset, file_out)
+            saveVtk(dataset, file_out, is_append=True)
 
     def add_transformed(self, csvfile, name=None, param=None):
         """
@@ -403,6 +406,25 @@ def import_cmd(args):
     if dbname is None:
         dbname = os.path.basename(filename).split('.')[0]+'.tdb'
         print dbname
+        if os.path.isfile(dbname):
+            os.remove(dbname)
+
+    TRKMGR = TrackManager(dbname)
+    TRKMGR.tracts_to_db(filename, group=group_id)
+
+def add_cmd(args):
+    print 'import cmd'
+    print args
+
+    filename = args.i
+    dbname = args.d
+    group_id = args.group
+
+    if dbname is None:
+        dbname = os.path.basename(filename).split('.')[0]+'.tdb'
+        print dbname
+        if os.path.isfile(dbname):
+            os.remove(dbname)
 
     TRKMGR = TrackManager(dbname)
     TRKMGR.tracts_to_db(filename, group=group_id)
@@ -475,8 +497,13 @@ def main():
     # delete tracts
 
     init_pars = subparser.add_parser('init', help='Create a new tract db', parents=[parser_shared])
+    init_pars = subparser.add_parser('add', help='Add a vtp to existing tract db', parents=[parser_shared])
     init_pars.add_argument('--group', help='Group ID this track belongs to')
     init_pars.set_defaults(func=import_cmd)
+
+    add_pars = subparser.add_parser('add', help='Add a vtp to existing tract db', parents=[parser_shared])
+    add_pars.add_argument('--group', help='Group ID this track belongs to')
+    add_pars.set_defaults(func=add_cmd)    
 
     del_pars = subparser.add_parser('del', help='Remove a tract', parents = [parser_shared])
     del_pars.add_argument('-t', metavar='trackvar', help='track name')
